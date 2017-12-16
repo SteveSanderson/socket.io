@@ -1,364 +1,168 @@
-# Socket.IO
 
-Socket.IO is a Node.JS project that makes WebSockets and realtime possible in
-all browsers. It also enhances WebSockets by providing built-in multiplexing,
-horizontal scalability, automatic JSON encoding/decoding, and more.
+# socket.io
 
-## How to Install
+[![Build Status](https://secure.travis-ci.org/socketio/socket.io.svg?branch=master)](https://travis-ci.org/socketio/socket.io)
+[![Dependency Status](https://david-dm.org/socketio/socket.io.svg)](https://david-dm.org/socketio/socket.io)
+[![devDependency Status](https://david-dm.org/socketio/socket.io/dev-status.svg)](https://david-dm.org/socketio/socket.io#info=devDependencies)
+[![NPM version](https://badge.fury.io/js/socket.io.svg)](https://www.npmjs.com/package/socket.io)
+![Downloads](https://img.shields.io/npm/dm/socket.io.svg?style=flat)
+[![](http://slack.socket.io/badge.svg?)](http://slack.socket.io)
+
+## Features
+
+Socket.IO enables real-time bidirectional event-based communication. It consists in:
+
+- a Node.js server (this repository)
+- a [Javascript client library](https://github.com/socketio/socket.io-client) for the browser (or a Node.js client)
+
+Some implementations in other languages are also available:
+
+- [Java](https://github.com/socketio/socket.io-client-java)
+- [C++](https://github.com/socketio/socket.io-client-cpp)
+- [Swift](https://github.com/socketio/socket.io-client-swift)
+
+Its main features are:
+
+#### Reliability
+
+Connections are established even in the presence of:
+  - proxies and load balancers.
+  - personal firewall and antivirus software.
+
+For this purpose, it relies on [Engine.IO](https://github.com/socketio/engine.io), which first establishes a long-polling connection, then tries to upgrade to better transports that are "tested" on the side, like WebSocket. Please see the [Goals](https://github.com/socketio/engine.io#goals) section for more information.
+
+#### Auto-reconnection support
+
+Unless instructed otherwise a disconnected client will try to reconnect forever, until the server is available again. Please see the available reconnection options [here](https://github.com/socketio/socket.io-client/blob/master/docs/API.md#new-managerurl-options).
+
+#### Disconnection detection
+
+An heartbeat mechanism is implemented at the Engine.IO level, allowing both the server and the client to know when the other one is not responding anymore.
+
+That functionality is achieved with timers set on both the server and the client, with timeout values (the `pingInterval` and `pingTimeout` parameters) shared during the connection handshake. Those timers require any subsequent client calls to be directed to the same server, hence the `sticky-session` requirement when using multiples nodes.
+
+#### Binary support
+
+Any serializable data structures can be emitted, including:
+
+- [ArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) and [Blob](https://developer.mozilla.org/en-US/docs/Web/API/Blob) in the browser
+- [ArrayBuffer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer) and [Buffer](https://nodejs.org/api/buffer.html) in Node.js
+
+#### Simple and convenient API
+
+Sample code:
+
+```js
+io.on('connection', function(socket){
+  socket.emit('request', /* */); // emit an event to the socket
+  io.emit('broadcast', /* */); // emit an event to all connected sockets
+  socket.on('reply', function(){ /* */ }); // listen to the event
+});
+```
+
+#### Cross-browser
+
+Browser support is tested in Saucelabs:
+
+[![Sauce Test Status](https://saucelabs.com/browser-matrix/socket.svg)](https://saucelabs.com/u/socket)
+
+#### Multiplexing support
+
+In order to create separation of concerns within your application (for example per module, or based on permissions), Socket.IO allows you to create several `Namespaces`, which will act as separate communication channels but will share the same underlying connection.
+
+#### Room support
+
+Within each `Namespace`, you can define arbitrary channels, called `Rooms`, that sockets can join and leave. You can then broadcast to any given room, reaching every socket that has joined it.
+
+This is a useful feature to send notifications to a group of users, or to a given user connected on several devices for example.
+
+
+**Note:** Socket.IO is not a WebSocket implementation. Although Socket.IO indeed uses WebSocket as a transport when possible, it adds some metadata to each packet: the packet type, the namespace and the ack id when a message acknowledgement is needed. That is why a WebSocket client will not be able to successfully connect to a Socket.IO server, and a Socket.IO client will not be able to connect to a WebSocket server (like `ws://echo.websocket.org`) either. Please see the protocol specification [here](https://github.com/socketio/socket.io-protocol).
+
+## Installation
 
 ```bash
-npm install socket.io
+npm install socket.io --save
 ```
 
 ## How to use
 
-First, require `socket.io`:
+The following example attaches socket.io to a plain Node.JS
+HTTP server listening on port `3000`.
 
 ```js
-var io = require('socket.io');
-```
-
-Next, attach it to a HTTP/HTTPS server. If you're using the fantastic `express`
-web framework:
-
-#### Express 3.x
-
-```js
-var app = express()
-  , server = require('http').createServer(app)
-  , io = io.listen(server);
-
-server.listen(80);
-
-io.sockets.on('connection', function (socket) {
-  socket.emit('news', { hello: 'world' });
-  socket.on('my other event', function (data) {
-    console.log(data);
-  });
+var server = require('http').createServer();
+var io = require('socket.io')(server);
+io.on('connection', function(client){
+  client.on('event', function(data){});
+  client.on('disconnect', function(){});
 });
+server.listen(3000);
 ```
 
-#### Express 2.x
+### Standalone
 
 ```js
-var app = express.createServer()
-  , io = io.listen(app);
-
-app.listen(80);
-
-io.sockets.on('connection', function (socket) {
-  socket.emit('news', { hello: 'world' });
-  socket.on('my other event', function (data) {
-    console.log(data);
-  });
-});
+var io = require('socket.io')();
+io.on('connection', function(client){});
+io.listen(3000);
 ```
 
-Finally, load it from the client side code:
+### In conjunction with Express
 
-```html
-<script src="/socket.io/socket.io.js"></script>
-<script>
-  var socket = io.connect('http://localhost');
-  socket.on('news', function (data) {
-    console.log(data);
-    socket.emit('my other event', { my: 'data' });
-  });
-</script>
-```
-
-For more thorough examples, look at the `examples/` directory.
-
-## Short recipes
-
-### Sending and receiving events.
-
-Socket.IO allows you to emit and receive custom events.
-Besides `connect`, `message` and `disconnect`, you can emit custom events:
+Starting with **3.0**, express applications have become request handler
+functions that you pass to `http` or `http` `Server` instances. You need
+to pass the `Server` to `socket.io`, and not the express application
+function. Also make sure to call `.listen` on the `server`, not the `app`.
 
 ```js
-// note, io.listen(<port>) will create a http server for you
-var io = require('socket.io').listen(80);
-
-io.sockets.on('connection', function (socket) {
-  io.sockets.emit('this', { will: 'be received by everyone' });
-
-  socket.on('private message', function (from, msg) {
-    console.log('I received a private message by ', from, ' saying ', msg);
-  });
-
-  socket.on('disconnect', function () {
-    io.sockets.emit('user disconnected');
-  });
-});
+var app = require('express')();
+var server = require('http').createServer(app);
+var io = require('socket.io')(server);
+io.on('connection', function(){ /* … */ });
+server.listen(3000);
 ```
 
-### Storing data associated to a client
+### In conjunction with Koa
 
-Sometimes it's necessary to store data associated with a client that's
-necessary for the duration of the session.
-
-#### Server side
+Like Express.JS, Koa works by exposing an application as a request
+handler function, but only by calling the `callback` method.
 
 ```js
-var io = require('socket.io').listen(80);
-
-io.sockets.on('connection', function (socket) {
-  socket.on('set nickname', function (name) {
-    socket.set('nickname', name, function () { socket.emit('ready'); });
-  });
-
-  socket.on('msg', function () {
-    socket.get('nickname', function (err, name) {
-      console.log('Chat message by ', name);
-    });
-  });
-});
+var app = require('koa')();
+var server = require('http').createServer(app.callback());
+var io = require('socket.io')(server);
+io.on('connection', function(){ /* … */ });
+server.listen(3000);
 ```
 
-#### Client side
+## Documentation
 
-```html
-<script>
-  var socket = io.connect('http://localhost');
+Please see the documentation [here](/docs/README.md). Contributions are welcome!
 
-  socket.on('connect', function () {
-    socket.emit('set nickname', prompt('What is your nickname?'));
-    socket.on('ready', function () {
-      console.log('Connected !');
-      socket.emit('msg', prompt('What is your message?'));
-    });
-  });
-</script>
+## Debug / logging
+
+Socket.IO is powered by [debug](https://github.com/visionmedia/debug).
+In order to see all the debug output, run your app with the environment variable
+`DEBUG` including the desired scope.
+
+To see the output from all of Socket.IO's debugging scopes you can use:
+
+```
+DEBUG=socket.io* node myapp
 ```
 
-### Restricting yourself to a namespace
+## Testing
 
-If you have control over all the messages and events emitted for a particular
-application, using the default `/` namespace works.
-
-If you want to leverage 3rd-party code, or produce code to share with others,
-socket.io provides a way of namespacing a `socket`.
-
-This has the benefit of `multiplexing` a single connection. Instead of
-socket.io using two `WebSocket` connections, it'll use one.
-
-The following example defines a socket that listens on '/chat' and one for
-'/news':
-
-#### Server side
-
-```js
-var io = require('socket.io').listen(80);
-
-var chat = io
-  .of('/chat')
-  .on('connection', function (socket) {
-    socket.emit('a message', { that: 'only', '/chat': 'will get' });
-    chat.emit('a message', { everyone: 'in', '/chat': 'will get' });
-  });
-
-var news = io
-  .of('/news');
-  .on('connection', function (socket) {
-    socket.emit('item', { news: 'item' });
-  });
 ```
-
-#### Client side:
-
-```html
-<script>
-  var chat = io.connect('http://localhost/chat')
-    , news = io.connect('http://localhost/news');
-
-  chat.on('connect', function () {
-    chat.emit('hi!');
-  });
-
-  news.on('news', function () {
-    news.emit('woot');
-  });
-</script>
+npm test
 ```
+This runs the `gulp` task `test`. By default the test will be run with the source code in `lib` directory.
 
-### Sending volatile messages.
+Set the environmental variable `TEST_VERSION` to `compat` to test the transpiled es5-compat version of the code.
 
-Sometimes certain messages can be dropped. Let's say you have an app that
-shows realtime tweets for the keyword `bieber`. 
+The `gulp` task `test` will always transpile the source code into es5 and export to `dist` first before running the test.
 
-If a certain client is not ready to receive messages (because of network slowness
-or other issues, or because he's connected through long polling and is in the
-middle of a request-response cycle), if he doesn't receive ALL the tweets related
-to bieber your application won't suffer.
+## License
 
-In that case, you might want to send those messages as volatile messages.
-
-#### Server side
-
-```js
-var io = require('socket.io').listen(80);
-
-io.sockets.on('connection', function (socket) {
-  var tweets = setInterval(function () {
-    getBieberTweet(function (tweet) {
-      socket.volatile.emit('bieber tweet', tweet);
-    });
-  }, 100);
-
-  socket.on('disconnect', function () {
-    clearInterval(tweets);
-  });
-});
-```
-
-#### Client side
-
-In the client side, messages are received the same way whether they're volatile
-or not.
-
-### Getting acknowledgements
-
-Sometimes, you might want to get a callback when the client confirmed the message
-reception.
-
-To do this, simply pass a function as the last parameter of `.send` or `.emit`.
-What's more, when you use `.emit`, the acknowledgement is done by you, which
-means you can also pass data along:
-
-#### Server side
-
-```js
-var io = require('socket.io').listen(80);
-
-io.sockets.on('connection', function (socket) {
-  socket.on('ferret', function (name, fn) {
-    fn('woot');
-  });
-});
-```
-
-#### Client side
-
-```html
-<script>
-  var socket = io.connect(); // TIP: .connect with no args does auto-discovery
-  socket.on('connect', function () { // TIP: you can avoid listening on `connect` and listen on events directly too!
-    socket.emit('ferret', 'tobi', function (data) {
-      console.log(data); // data will be 'woot'
-    });
-  });
-</script>
-```
-
-### Broadcasting messages
-
-To broadcast, simply add a `broadcast` flag to `emit` and `send` method calls.
-Broadcasting means sending a message to everyone else except for the socket
-that starts it.
-
-#### Server side
-
-```js
-var io = require('socket.io').listen(80);
-
-io.sockets.on('connection', function (socket) {
-  socket.broadcast.emit('user connected');
-  socket.broadcast.json.send({ a: 'message' });
-});
-```
-
-### Rooms
-
-Sometimes you want to put certain sockets in the same room, so that it's easy
-to broadcast to all of them together.
-
-Think of this as built-in channels for sockets. Sockets `join` and `leave`
-rooms in each socket.
-
-#### Server side
-
-```js
-var io = require('socket.io').listen(80);
-
-io.sockets.on('connection', function (socket) {
-  socket.join('justin bieber fans');
-  socket.broadcast.to('justin bieber fans').emit('new fan');
-  io.sockets.in('rammstein fans').emit('new non-fan');
-});
-```
-
-### Using it just as a cross-browser WebSocket
-
-If you just want the WebSocket semantics, you can do that too.
-Simply leverage `send` and listen on the `message` event:
-
-#### Server side
-
-```js
-var io = require('socket.io').listen(80);
-
-io.sockets.on('connection', function (socket) {
-  socket.on('message', function () { });
-  socket.on('disconnect', function () { });
-});
-```
-
-#### Client side
-
-```html
-<script>
-  var socket = io.connect('http://localhost/');
-  socket.on('connect', function () {
-    socket.send('hi');
-
-    socket.on('message', function (msg) {
-      // my msg
-    });
-  });
-</script>
-```
-
-### Changing configuration
-
-Configuration in socket.io is TJ-style:
-
-#### Server side
-
-```js
-var io = require('socket.io').listen(80);
-
-io.configure(function () {
-  io.set('transports', ['websocket', 'flashsocket', 'xhr-polling']);
-});
-
-io.configure('development', function () {
-  io.set('transports', ['websocket', 'xhr-polling']);
-  io.enable('log');
-});
-```
-
-## License 
-
-(The MIT License)
-
-Copyright (c) 2011 Guillermo Rauch &lt;guillermo@learnboost.com&gt;
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-'Software'), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+[MIT](LICENSE)
